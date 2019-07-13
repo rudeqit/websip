@@ -1,2 +1,9 @@
-# websip
-Web sip calling
+websip
+=====
+
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile
