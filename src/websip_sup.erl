@@ -13,7 +13,7 @@
 
 -define(SERVER, ?MODULE).
 -define(PORT, 8080).
--define(IP, {192,168,1,6}).
+-define(IP, {127,0,0,1}).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
