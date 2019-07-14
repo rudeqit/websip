@@ -67,26 +67,7 @@ get_response(State, Packet) ->
     AcceptSock = State#state.socket,
     inet:setopts(AcceptSock, [{active, once}]),
     case websip:parse_packet(Packet) of 
-        {ok, get, Packet} -> get_page();
-        {ok, post, Phone} -> post(Phone);
-        {error, _Reason} -> get_error_page()
+        {ok, get, Packet} -> websip:get_page();
+        {ok, post, Phone} -> websip:post(Phone);
+        {error, _Reason} -> websip:get_error_page()
     end.
-
-
-get_page() ->
-    {ok, Binary} = file:read_file("priv/www/index.html"),
-    Size = erlang:byte_size(Binary),
-    BinSize = erlang:integer_to_binary(Size), 
-    HTTP = <<"HTTP/1.1 200 OK\r\nContent-Length: ", BinSize/binary, "\r\n\r\n">>,
-
-    <<HTTP/binary, Binary/binary>>.
-
-get_error_page() ->
-    Size = erlang:byte_size(<<"error">>),
-    BinSize = erlang:integer_to_binary(Size),
-    <<"HTTP/1.1 200 OK\r\nContent-Length: ", BinSize/binary, "\r\n\r\nerror">>.
-
-post(Phone) ->
-    Size = erlang:byte_size(Phone),
-    BinSize = erlang:integer_to_binary(Size),
-    <<"HTTP/1.1 200 OK\r\nContent-Length: ", BinSize/binary, "\r\n\r\n", Phone/binary>>.% sip_call(Phone);
