@@ -4,8 +4,6 @@
 
 -export([get_page/0, get_error_page/0, post/1, parse_packet/1]).
 
--define(DOMAIN, "192.168.1.5").
-
 get_page() ->
     {ok, Binary} = file:read_file("priv/www/index.html"),
     Size = erlang:byte_size(Binary),
@@ -41,25 +39,32 @@ parse_packet(Packet) ->
     end.
 
 sip_invite(Phone) ->
-    Client1 = string:concat("sip:1002@", ?DOMAIN),
+    {ok, Domain} = application:get_env(websip, pbx_domain),
+    {ok, Client1_phone} = application:get_env(websip, sip_client),
+    Client1 = string:concat(Client1_phone, Domain),
+
+    {ok, Udp_in} = application:get_env(websip, sip_udp_port_in),
+    {ok, Udp_out} = application:get_env(websip, sip_udp_port_out),
+    Sip_listen = "<" ++ Udp_in ++ ">" ++ "," ++ "<" ++ Udp_out ++ ";transport=udp>", % TODO avoid string concatenation
     nksip:start_link(client1, 
         #{sip_from => Client1, 
           plugins => [nksip_uac_auto_auth], 
-          sip_listen => "<sip:all:7894>, 
-          <sip:all:7895;transport=udp>"
+        %   sip_listen => "<sip:all:7894>, 
+        %   <sip:all:7895;transport=udp>"
+            sip_listen => Sip_listen
         }),
 
-    PBX_ID = string:concat("sip:", ?DOMAIN),
-    nksip_uac:register(client1, PBX_ID,
-        [{sip_pass, "45678"}, contact, {meta, ["contact"]}]),
+    PBX_addr = string:concat("sip:", Domain),
+    {ok, Sip_pass} = application:get_env(websip, sip_pass),
+    nksip_uac:register(client1, PBX_addr,
+        [{sip_pass, Sip_pass}, contact, {meta, ["contact"]}]),
     
-    Client2 = "sip:" ++ Phone ++ "@" ++ ?DOMAIN,
-    % Client2 = string:concat("sip:1001@", ?DOMAIN),
+    Client2 = "sip:" ++ Phone ++ "@" ++ Domain, % TODO avoid string concatenation
     nksip_uac:invite(client1, Client2,
         [{add, "x-nk-op", ok}, {add, "x-nk-prov", true},
          {add, "x-nk-sleep", 8000},
          auto_2xx_ack,
-         {sip_pass, "45678"} %, {route, "<sip:192.168.2.2;lr>"}
+         {sip_pass, Sip_pass}
         ]).
     
     % nksip_uac:bye(DlgId, []).

@@ -12,8 +12,6 @@
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
--define(PORT, 8080).
--define(IP, {192,168,1,5}).
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
@@ -28,8 +26,9 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    % {ok, Port} = application:get_env(port),
-    {ok, ListenSock} = gen_tcp:listen(?PORT, [binary, {active, false}, {packet, 0}, {ip, ?IP}]),    
+    {ok, IP} = application:get_env(websip, webserv_ip),
+    {ok, Port} = application:get_env(websip, webserv_port),
+    {ok, ListenSock} = gen_tcp:listen(Port, [binary, {active, false}, {packet, 0}, {ip, IP}]),    
     spawn_link(fun initial_listeners/0),
 
     SupFlags = #{strategy => simple_one_for_one,
