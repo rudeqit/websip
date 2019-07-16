@@ -43,15 +43,13 @@ sip_invite(Phone) ->
     {ok, Client1_phone} = application:get_env(websip, sip_client),
     Client1 = string:concat(Client1_phone, Domain),
 
-    {ok, Udp_in} = application:get_env(websip, sip_udp_port_in),
-    {ok, Udp_out} = application:get_env(websip, sip_udp_port_out),
-    Sip_listen = "<" ++ Udp_in ++ ">" ++ "," ++ "<" ++ Udp_out ++ ";transport=udp>", % TODO avoid string concatenation
+    {ok, Port} = application:get_env(websip, sip_udp_port),
+    {ok, Port_rez} = application:get_env(websip, sip_udp_port_reserve),
+    Sip_listen = "<" ++ Port ++ ">" ++ "," ++ "<" ++ Port_rez ++ ";transport=udp>", % TODO avoid string concatenation
     nksip:start_link(client1, 
         #{sip_from => Client1, 
           plugins => [nksip_uac_auto_auth], 
-        %   sip_listen => "<sip:all:7894>, 
-        %   <sip:all:7895;transport=udp>"
-            sip_listen => Sip_listen
+          sip_listen => Sip_listen
         }),
 
     PBX_addr = string:concat("sip:", Domain),
