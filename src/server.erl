@@ -36,11 +36,11 @@ handle_cast(listen, State) ->
     {noreply, State#state{socket=AcceptSock}};
 
 handle_cast({receiverd, Packet}, State) ->
+    websip_sup:start_listener(),
     AcceptSock = State#state.socket,
     Response = get_response(State, Packet),
     gen_tcp:send(AcceptSock, Response),
     gen_tcp:close(AcceptSock),
-    websip_sup:start_listener(),
     {stop, normal, State}.
 
 
@@ -69,5 +69,5 @@ get_response(State, Packet) ->
     case websip:parse_packet(Packet) of 
         {ok, get, Packet} -> websip:get_page();
         {ok, post, Phone} -> websip:post(Phone);
-        {error, _Reason} -> websip:get_error_page()
+        {error, Reason} -> websip:get_error_page({error, Reason})
     end.
