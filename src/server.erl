@@ -68,6 +68,6 @@ get_response(State, Packet) ->
     inet:setopts(AcceptSock, [{active, once}]),
     case websip:parse_packet(Packet) of 
         {ok, get, Packet} -> websip:get_page();
-        {ok, post, Phone} -> websip:post(Phone);
+        {ok, post, Phone, Text} -> websip:post(Phone, Text);
         {error, Reason} -> websip:get_error_page({error, Reason})
     end.
