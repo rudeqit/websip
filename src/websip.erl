@@ -1,9 +1,10 @@
 -module(websip).
 
--include("websip.hrl").
-
 -export([get_page/0, get_error_page/1, post/2, parse_packet/1]).
+
 -include_lib("../nksip/include/nksip.hrl").
+
+-compile([{parse_transform, lager_transform}]).
 
 get_page() ->
     {ok, Binary} = file:read_file("priv/www/index.html"),
@@ -16,7 +17,6 @@ get_page() ->
 get_error_page({Class, Reason, _StackTrace}) ->
     BinClass = erlang:atom_to_binary(Class, utf8),
     BinReason = erlang:atom_to_binary(Reason, utf8),
-    % BinST = erlang:term_to_binary(_StackTrace),
     Size = erlang:byte_size(BinClass) + erlang:byte_size(BinReason) +  erlang:byte_size(<<": ">>),
     BinSize = erlang:integer_to_binary(Size),
     <<"HTTP/1.1 200 OK\r\nContent-Length: ", BinSize/binary, "\r\n\r\n", BinClass/binary, ": ", BinReason/binary>>.
@@ -40,10 +40,10 @@ parse_packet(Packet) ->
                     [_ | Phone] = string:split(PhonePart, "phone="),
                     [_ | Text] = string:split(erlang:hd(TextPart), "text="), 
                     {ok, post, erlang:hd(Phone), erlang:hd(Text)};
-                _ -> {error, badrequest}
+                _ -> {error, badrequest, erlang:get_stacktrace()}
             end;
         [<<"GET ">> | _T] -> {ok, get, Packet};
-        _ -> {error, badrequest}
+        _ -> {error, badrequest, erlang:get_stacktrace()}
     end.
 
 sip_invite(Phone, Text) ->
@@ -65,7 +65,7 @@ made_call(Phone, Text) ->
     % {ok, Route} = application:get_env(websip, route),
 
     Client1 = string:concat(Client, PBX_Domain),
-    Sip_listen = "<" ++ UDP_Port ++ ">" ++ "," ++ "<" ++ UDP_Port_Reserve ++ ";transport=udp>", % TODO avoid string concatenation
+    Sip_listen = "<" ++ UDP_Port ++ ">" ++ "," ++ "<" ++ UDP_Port_Reserve ++ ";transport=udp>",
     StartOptions = #{sip_from => Client1, 
                      plugins => [nksip_uac_auto_auth], 
                      sip_listen => Sip_listen},
@@ -82,20 +82,18 @@ made_call(Phone, Text) ->
     case nksip_uac:register(client1, PBX_Addr, RegOptions) of
         {ok, 200, _} -> ok;
         _ ->
-            % nksip:stop(Sip_Client),
+            % nksip:stop(client1),
             % erlang:error(noregister)
             ok
     end,
 
-    Client2 = "sip:" ++ Phone ++ "@" ++ PBX_Domain, % TODO avoid string concatenation
+    Client2 = "sip:" ++ Phone ++ "@" ++ PBX_Domain,
     
     SDP = #sdp{address = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_Ip)},
                connect = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_Ip)},
                time = [{0, 0, []}],
                medias = [#sdp_m{media = <<"audio">>,
                                 port = 9990,
-                                % port = 45385,
-                                % proto = <<"RTP/AVP">>,
                                 fmt = [<<"0">>, <<"101">>],
                                 attributes = [{<<"sendrecv">>, []}]
                                 }
@@ -106,14 +104,14 @@ made_call(Phone, Text) ->
                      {add, "x-nk-prov", true},
                      {add, "x-nk-sleep", 8000},
                      auto_2xx_ack,
-                     {sip_dialog_timeout, 40000},    % TODO fix timeout
+                     {sip_dialog_timeout, 40000},
                      {sip_pass, Client_Pass},
                      {body, SDP}
                      % ,{route, Route},    
                     ],
 
-    invite(3, Client2, InviteOptions, Text).                  
-    % nksip:stop(client1).
+    invite(3, Client2, InviteOptions, Text),                  
+    nksip:stop(client1).
 
 invite(0, _, _, _) ->
     erlang:error(noinvite);
@@ -125,25 +123,16 @@ invite(Acc, Client2, InviteOps, Text) when Acc > 0 ->
             Port = SDP_M#sdp_m.port,
 
             {ok, PBX_Ip} = application:get_env(websip, pbx_ip),
-            GenVoice = "wget -O priv/generate.wav \"https://tts.voicetech.yandex.net/generate?format=wav&lang=ru_RU&key=069b6659-984b-4c5f-880e-aaedcfd84102&text=" ++ Text ++ "\"",
-            os:cmd(GenVoice),
-            os:cmd("rm priv/output.wav"),
-            ConvertVoice = "ffmpeg -i priv/generate.wav -codec:a pcm_mulaw -ar 8000 -ac 1 priv/output.wav",
-            os:cmd(ConvertVoice),
-            StartVoice = "./_build/voice_client priv/output.wav " ++ PBX_Ip ++ " " ++ erlang:integer_to_list(Port),
-            % Cmd =  GenVoice ++ "&&" ++ ConvertVoice ++ "&&" ++ StartVoice,
-            os:cmd(StartVoice),
+            GenVoice = "wget -O priv/voice/generate.wav \"https://tts.voicetech.yandex.net/generate?format=wav&lang=ru_RU&key=069b6659-984b-4c5f-880e-aaedcfd84102&text=" 
+                        ++ Text ++ "\"",
+            RmOld = "rm priv/voice/output.wav",
+            ConvertVoice = "ffmpeg -i priv/voice/generate.wav -codec:a pcm_mulaw -ar 8000 -ac 1 priv/voice/output.wav",
+            StartVoice = "./_build/voice_client priv/voice/output.wav " ++ PBX_Ip ++ " " ++ erlang:integer_to_list(Port),
+            Cmd = GenVoice ++ " && " ++ RmOld ++ " && " ++ ConvertVoice ++ " && " ++ StartVoice,
+            os:cmd(Cmd),
             nksip_uac:bye(DlgId, []),
             ok;
         _Error ->
             timer:sleep(4000), 
             invite(Acc - 1, Client2, InviteOps, Text)
     end.
-
-%% generates random string of chars [a-zA-Z0-9]
-% rand_str(Length) ->
-%     lists:map(fun(Char) when Char > 83 -> Char + 13;
-%                  (Char) when Char > 57 -> Char + 7;
-%                  (Char) -> Char
-%               end,
-%               [rand:uniform(110 - 48) + 47 || _ <- lists:seq(1, Length)]).

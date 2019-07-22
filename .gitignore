@@ -20,4 +20,3 @@ rebar3.crashdump
 *~
 output.wav
 generate.wav
-voice_client

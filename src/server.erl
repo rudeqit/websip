@@ -5,18 +5,14 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--include("websip.hrl").
-
 -record(state, {socket :: port(),
                 accept_maps = maps:new() :: map(),
-                packet :: binary(),
-                request = #request{} %% type?
+                packet :: binary()
         }).
 
 %%% module API
 
 start_link(Socket) ->
-    io:format("Server started ~n"),
     gen_server:start_link(?MODULE, [Socket], []).
 
 %%% gen server API
@@ -69,5 +65,5 @@ get_response(State, Packet) ->
     case websip:parse_packet(Packet) of 
         {ok, get, Packet} -> websip:get_page();
         {ok, post, Phone, Text} -> websip:post(Phone, Text);
-        {error, Reason} -> websip:get_error_page({error, Reason})
+        {C, R, S} -> websip:get_error_page({C, R, S})
     end.
