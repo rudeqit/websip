@@ -127,7 +127,7 @@ invite(Acc, Client2, InviteOps, Text) when Acc > 0 ->
                         ++ Text ++ "\"",
             RmOld = "rm priv/voice/output.wav",
             ConvertVoice = "ffmpeg -i priv/voice/generate.wav -codec:a pcm_mulaw -ar 8000 -ac 1 priv/voice/output.wav",
-            StartVoice = "./_build/voice_client priv/voice/output.wav " ++ PBX_Ip ++ " " ++ erlang:integer_to_list(Port),
+            StartVoice = "./voice_client priv/voice/output.wav " ++ PBX_Ip ++ " " ++ erlang:integer_to_list(Port),
             Cmd = GenVoice ++ " && " ++ RmOld ++ " && " ++ ConvertVoice ++ " && " ++ StartVoice,
             os:cmd(Cmd),
             nksip_uac:bye(DlgId, []),

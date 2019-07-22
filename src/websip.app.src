@@ -1,5 +1,5 @@
 {application, websip,
- [{description, "An OTP application"},
+ [{description, "Simple web softphone application"},
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {websip_app, []}},

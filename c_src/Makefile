@@ -2,8 +2,8 @@ LIBS=-lortp -lpthread -lrt
 
 all: compile
 
-compile: clean
-	gcc -o ../_build/voice_client rtpsend.c $(LIBS)
+compile:
+	gcc -o ../voice_client rtpsend.c $(LIBS)
 
 clean:
-	rm  ../_build/voice_client
+	rm  ../voice_client
