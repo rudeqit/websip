@@ -17,6 +17,7 @@ _build
 .vscode
 *.iml
 rebar3.crashdump
+rebar.lock
 *~
 output.wav
 generate.wav

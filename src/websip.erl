@@ -6,7 +6,8 @@
 
 -compile([{parse_transform, lager_transform}]).
 
-get_page() ->
+%%% Return priv/www/index.html page to the HTTP GET request 
+get_page() ->   
     {ok, Binary} = file:read_file("priv/www/index.html"),
     Size = erlang:byte_size(Binary),
     BinSize = erlang:integer_to_binary(Size), 
@@ -14,6 +15,8 @@ get_page() ->
 
     <<HTTP/binary, Binary/binary>>.
 
+
+%%% Return page with the reason of the error to the Web
 get_error_page({Class, Reason, _StackTrace}) ->
     BinClass = erlang:atom_to_binary(Class, utf8),
     BinReason = erlang:atom_to_binary(Reason, utf8),
@@ -21,6 +24,7 @@ get_error_page({Class, Reason, _StackTrace}) ->
     BinSize = erlang:integer_to_binary(Size),
     <<"HTTP/1.1 200 OK\r\nContent-Length: ", BinSize/binary, "\r\n\r\n", BinClass/binary, ": ", BinReason/binary>>.
 
+%%% Processes the HTTP POST request by the specified Phone&Text and forms the answer
 post(Phone, Text) ->
     Size = erlang:byte_size(Phone) + erlang:byte_size(<<"Successfully!  heard your message">>),
     BinSize = erlang:integer_to_binary(Size),
@@ -31,6 +35,7 @@ post(Phone, Text) ->
             get_error_page({C, R, S})
     end.
 
+%%% Parsing msg from client
 parse_packet(Packet) ->
     case string:split(Packet, "/") of
         [<<"POST ">> | _T] -> 
@@ -46,8 +51,9 @@ parse_packet(Packet) ->
         _ -> {error, badrequest, erlang:get_stacktrace()}
     end.
 
+%%% Just trying make the call
 sip_invite(Phone, Text) ->
-    try made_call(Phone, Text) of
+    try make_call(Phone, Text) of
         ok -> 
             {ok, succes}
     catch
@@ -55,14 +61,15 @@ sip_invite(Phone, Text) ->
             {Class, Reason, erlang:get_stacktrace()}
     end.
 
-made_call(Phone, Text) ->
+%%% Launches SIP client, registers and does invite
+make_call(Phone, Text) ->
     {ok, PBX_Domain} = application:get_env(websip, pbx_domain),
     {ok, PBX_Ip} = application:get_env(websip, pbx_ip),
     {ok, Client} = application:get_env(websip, client),
     {ok, Client_Pass} = application:get_env(websip, client_pass),
     {ok, UDP_Port} = application:get_env(websip, udp_port),
     {ok, UDP_Port_Reserve} = application:get_env(websip, udp_port_reserve),
-    % {ok, Route} = application:get_env(websip, route),
+    % {ok, Route} = application:get_env(websip, route),     % if u need route
 
     Client1 = string:concat(Client, PBX_Domain),
     Sip_listen = "<" ++ UDP_Port ++ ">" ++ "," ++ "<" ++ UDP_Port_Reserve ++ ";transport=udp>",
@@ -79,13 +86,7 @@ made_call(Phone, Text) ->
     PBX_Addr = string:concat("sip:", PBX_Ip),
     RegOptions = [{sip_pass, Client_Pass}, contact, {meta, ["contact"]}],    
 
-    case nksip_uac:register(client1, PBX_Addr, RegOptions) of
-        {ok, 200, _} -> ok;
-        _ ->
-            % nksip:stop(client1),
-            % erlang:error(noregister)
-            ok
-    end,
+    nksip_uac:register(client1, PBX_Addr, RegOptions),
 
     Client2 = "sip:" ++ Phone ++ "@" ++ PBX_Domain,
     
@@ -94,6 +95,7 @@ made_call(Phone, Text) ->
                time = [{0, 0, []}],
                medias = [#sdp_m{media = <<"audio">>,
                                 port = 9990,
+                                proto = <<"RTP/AVP">>,
                                 fmt = [<<"0">>, <<"101">>],
                                 attributes = [{<<"sendrecv">>, []}]
                                 }
@@ -104,15 +106,16 @@ made_call(Phone, Text) ->
                      {add, "x-nk-prov", true},
                      {add, "x-nk-sleep", 8000},
                      auto_2xx_ack,
-                     {sip_dialog_timeout, 40000},
+                     {sip_dialog_timeout, 40000},   % TODO: fix timeout
                      {sip_pass, Client_Pass},
                      {body, SDP}
-                     % ,{route, Route},    
+                     % ,{route, Route},     % if u need route
                     ],
 
-    invite(3, Client2, InviteOptions, Text),                  
+    invite(3, Client2, InviteOptions, Text),    % insofar as timeout didn't work trying to invite 3 times              
     nksip:stop(client1).
 
+%%% Is trying make invite until Acc > 0
 invite(0, _, _, _) ->
     erlang:error(noinvite);
 invite(Acc, Client2, InviteOps, Text) when Acc > 0 ->
