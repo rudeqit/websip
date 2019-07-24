@@ -1,6 +1,8 @@
 -module(server).
 -behavior(gen_server).
 
+-compile([{parse_transform, lager_transform}]).
+
 -export([start_link/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -19,6 +21,7 @@ start_link(Socket) ->
 
 init([Socket]) ->
     gen_server:cast(self(), listen),
+    lager:info("Spawn server thread [~p]", [erlang:self()]),
     {ok, #state{socket = Socket}}.
 
 handle_call(_Any, _From, State) ->
@@ -36,11 +39,13 @@ handle_cast({receiverd, Packet}, State) ->
     AcceptSock = State#state.socket,
     Response = get_response(State, Packet),
     gen_tcp:send(AcceptSock, Response),
+    lager:info("Session closed in [~p]", [erlang:self()]),
     gen_tcp:close(AcceptSock),
     {stop, normal, State}.
 
 
 handle_info({tcp, _ClientSocket, Packet}, State) ->
+    lager:info("Socket in [~p] got message: ~p", [erlang:self(), Packet]),
     NewState = State#state{packet = Packet},
     gen_server:cast(self(), {receiverd, Packet}),
     {noreply, NewState};
@@ -48,6 +53,7 @@ handle_info({tcp, _ClientSocket, Packet}, State) ->
 handle_info({tcp_closed, _ClientSocket}, State) ->
     AcceptSock = State#state.socket,
     gen_tcp:close(AcceptSock),
+    lager:info("Session closed in [~p] and thread will be restart now", [erlang:self()]),
     websip_sup:start_listener(),
     {stop, normal, State}.
 

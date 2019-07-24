@@ -7,7 +7,7 @@
 -compile([{parse_transform, lager_transform}]).
 
 %%% Return priv/www/index.html page to the HTTP GET request 
-get_page() ->   
+get_page() -> 
     {ok, Binary} = file:read_file("priv/www/index.html"),
     Size = erlang:byte_size(Binary),
     BinSize = erlang:integer_to_binary(Size), 
@@ -17,7 +17,8 @@ get_page() ->
 
 
 %%% Return page with the reason of the error to the Web
-get_error_page({Class, Reason, _StackTrace}) ->
+get_error_page({Class, Reason, Stacktrace}) ->
+    lager:error("~nStacktrace:~s",[lager:pr_stacktrace(Stacktrace, {Class, Reason})]),
     BinClass = erlang:atom_to_binary(Class, utf8),
     BinReason = erlang:atom_to_binary(Reason, utf8),
     Size = erlang:byte_size(BinClass) + erlang:byte_size(BinReason) +  erlang:byte_size(<<": ">>),
@@ -84,9 +85,13 @@ make_call(Phone, Text) ->
     end,
 
     PBX_Addr = string:concat("sip:", PBX_Ip),
-    RegOptions = [{sip_pass, Client_Pass}, contact, {meta, ["contact"]}],    
-
-    nksip_uac:register(client1, PBX_Addr, RegOptions),
+    RegOptions = [{sip_pass, Client_Pass}, contact, {meta, ["contact"]}],
+    
+    case nksip_uac:register(client1, PBX_Addr, RegOptions) of 
+        {ok, 200, _} -> ok;
+        Error ->
+            lager:warning("Register problem: ", [Error])
+    end,
 
     Client2 = "sip:" ++ Phone ++ "@" ++ PBX_Domain,
     
@@ -132,7 +137,9 @@ invite(Acc, Client2, InviteOps, Text) when Acc > 0 ->
             ConvertVoice = "ffmpeg -i priv/voice/generate.wav -codec:a pcm_mulaw -ar 8000 -ac 1 priv/voice/output.wav",
             StartVoice = "./voice_client priv/voice/output.wav " ++ PBX_Ip ++ " " ++ erlang:integer_to_list(Port),
             Cmd = GenVoice ++ " && " ++ RmOld ++ " && " ++ ConvertVoice ++ " && " ++ StartVoice,
-            os:cmd(Cmd),
+            Res = os:cmd(Cmd),
+            ResBin = unicode:characters_to_binary(Res), 
+            lager:info("Result cmd: ~s", [ResBin]),
             nksip_uac:bye(DlgId, []),
             ok;
         _Error ->
