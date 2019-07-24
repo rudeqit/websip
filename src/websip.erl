@@ -70,7 +70,7 @@ make_call(Phone, Text) ->
     {ok, Client_Pass} = application:get_env(websip, client_pass),
     {ok, UDP_Port} = application:get_env(websip, udp_port),
     {ok, UDP_Port_Reserve} = application:get_env(websip, udp_port_reserve),
-    % {ok, Route} = application:get_env(websip, route),     % if u need route
+    {ok, Route} = application:get_env(websip, route),
 
     Client1 = string:concat(Client, PBX_Domain),
     Sip_listen = "<" ++ UDP_Port ++ ">" ++ "," ++ "<" ++ UDP_Port_Reserve ++ ";transport=udp>",
@@ -93,7 +93,7 @@ make_call(Phone, Text) ->
             lager:warning("Register problem: ", [Error])
     end,
 
-    Client2 = "sip:" ++ Phone ++ "@" ++ PBX_Domain,
+    Client2 = "sip:" ++ Phone ++ PBX_Domain,
     
     SDP = #sdp{address = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_Ip)},
                connect = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_Ip)},
@@ -113,8 +113,8 @@ make_call(Phone, Text) ->
                      auto_2xx_ack,
                      {sip_dialog_timeout, 40000},   % TODO: fix timeout
                      {sip_pass, Client_Pass},
-                     {body, SDP}
-                     % ,{route, Route},     % if u need route
+                     {body, SDP},
+                     {route, Route}
                     ],
 
     invite(3, Client2, InviteOptions, Text),    % insofar as timeout didn't work trying to invite 3 times              
